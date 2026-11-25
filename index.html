@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scent·Blender 3D · 香调调配模拟器</title>
+  <meta name="description" content="基于 Three.js 的 360° 香水工坊，环绕香料柜、中央调香台与本地香调规则分析。" />
+</head>
+<body class="bg-ink-900 text-stone-200 font-sans overflow-hidden antialiased">
+  <div id="app" class="h-screen w-screen flex flex-col">
+
+    <!-- ============ 顶栏 ============ -->
+    <header class="h-16 shrink-0 flex items-center justify-between gap-4 px-5 border-b border-white/[.06] bg-ink-800/85 backdrop-blur-xl z-30">
+      <div class="flex items-center gap-3 shrink-0">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-brand to-amber-700 flex items-center justify-center shadow-lg shadow-amber-900/30">
+          <svg viewBox="0 0 24 24" class="w-5 h-5 text-ink-900" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 3h6M10 3v3.2c0 .7-.3 1.3-.8 1.8C8.4 8.8 7.5 10 7.5 12v6.5A2.5 2.5 0 0 0 10 21h4a2.5 2.5 0 0 0 2.5-2.5V12c0-2-.9-3.2-1.7-4-.5-.5-.8-1.1-.8-1.8V3"/>
+            <path d="M7.5 14h9"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-[15px] font-semibold tracking-wide text-stone-100 leading-tight">
+            Scent·Blender <span class="text-amber-soft font-serif italic">3D</span>
+          </h1>
+          <p class="text-[9px] text-stone-500 tracking-[.2em] uppercase mt-0.5">Olfactory Atelier · 香调调配工坊</p>
+        </div>
+      </div>
+
+      <div id="topbar-stats" class="hidden lg:flex items-center gap-4 text-[11px] text-stone-400"></div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="btn-undo" aria-label="撤销上一次投放" class="px-3 py-1.5 rounded-lg text-[11px] text-stone-400 border border-white/10 hover:border-white/25 hover:text-stone-100 transition-colors" title="撤销上一次投放（Ctrl+Z）">
+          ↩ <span>撤销投放</span>
+        </button>
+        <button id="btn-reset" aria-label="清空配方" class="px-3 py-1.5 rounded-lg text-[11px] text-stone-400 border border-white/10 hover:border-white/25 hover:text-stone-100 transition-colors">
+          ⌫ <span>清空配方</span>
+        </button>
+        <button id="btn-review" aria-label="生成香评" class="group px-3.5 py-1.5 rounded-lg text-[11px] font-medium text-ink-900 bg-gradient-to-r from-amber-soft to-amber-brand hover:brightness-110 transition-all shadow-lg shadow-amber-900/25 flex items-center gap-1.5">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9L12 2zM19 15l.9 2.6L22.5 18.5l-2.6.9L19 22l-.9-2.6-2.6-.9 2.6-.9L19 15z"/></svg>
+          <span>生成香评</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ============ 3D 工坊 + 配方 ============ -->
+    <main id="workspace" class="flex-1 min-h-0 grid" style="--recipe-width:360px;grid-template-columns:minmax(0,1fr) var(--recipe-width)">
+
+      <!-- 左：香料清单 -->
+      <aside id="library-pane" class="hidden" aria-hidden="true">
+        <div class="p-4 pb-3 border-b border-white/[.06] shrink-0">
+          <div class="flex items-baseline justify-between">
+            <h2 class="text-[13px] font-medium text-stone-200">香料储物柜</h2>
+            <span id="lib-count" class="text-[10px] text-stone-500"></span>
+          </div>
+          <p class="text-[10px] text-stone-500 mt-1 leading-relaxed">拖拽或点击取用 · 也可直接点 3D 柜格</p>
+          <div class="mt-3 relative">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-500" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input id="search" type="text" placeholder="搜索香料 / 形态 / 调级…" autocomplete="off"
+              class="w-full bg-black/30 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-[11px] text-stone-200 placeholder:text-stone-600 outline-none focus:border-amber-brand/60 focus:ring-1 focus:ring-amber-brand/20 transition-all" />
+          </div>
+          <div id="cat-tabs" class="mt-3 flex flex-wrap gap-1"></div>
+        </div>
+        <div id="library-list" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-1.5 custom-scroll"></div>
+      </aside>
+
+      <!-- 中：3D 舞台 -->
+      <section id="stage" class="relative min-h-0 overflow-hidden bg-[#f7f7f4]">
+        <div id="canvas-wrap" class="absolute inset-0"></div>
+        <div class="pointer-events-none absolute inset-0 vignette"></div>
+
+        <div class="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-10">
+          <div id="stage-hint" class="glass-pill px-3.5 py-1.5 text-[11px] text-stone-300 flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-brand animate-pulse"></span>
+            拖动画面环绕 · 拖动香料投入 · 右键看香材介绍
+          </div>
+        </div>
+
+        <!-- 拖拽投放热区（覆盖香水瓶区域） -->
+        <div id="drop-zone" class="absolute z-20 rounded-[2rem] transition-all duration-300"></div>
+        <div id="drop-label" class="absolute z-20 pointer-events-none opacity-0 transition-all duration-300 glass-pill px-4 py-2 text-[12px] text-amber-soft font-medium"></div>
+
+        <!-- 3D 悬浮信息卡 -->
+        <div id="tooltip" class="hidden absolute z-30 pointer-events-none w-[190px] rounded-xl border border-white/10 bg-ink-800/95 backdrop-blur-xl shadow-glass p-3"></div>
+
+        <div class="absolute bottom-4 left-4 z-10 text-[10px] text-stone-600 leading-relaxed pointer-events-none">
+          拖动瓶身加入配方 · 右键查看香料属性 · 拖拽空白处旋转 · 滚轮缩放
+        </div>
+        <div id="stage-legend" class="absolute bottom-4 right-4 z-10 flex gap-2.5 text-[10px] pointer-events-none"></div>
+
+        <!-- 3D 载入遮罩 -->
+        <div id="stage-loading" class="absolute inset-0 z-40 flex items-center justify-center bg-[#100d0b] transition-opacity duration-700">
+          <div class="text-center">
+            <div class="w-10 h-10 mx-auto rounded-full border-2 border-amber-brand/20 border-t-amber-brand animate-spin"></div>
+            <p class="mt-4 text-[11px] tracking-[.25em] text-stone-500 uppercase">Preparing Atelier</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右：配方 + 规则分析 -->
+      <aside id="recipe-pane" class="min-h-0 flex flex-col border-l border-white/[.06] bg-ink-800/55 backdrop-blur-md">
+        <div class="shrink-0 p-4 border-b border-white/[.06]">
+          <div class="flex items-baseline justify-between">
+            <div class="flex items-baseline gap-2 min-w-0">
+              <h2 class="text-[13px] font-medium text-stone-200">我的配方</h2>
+              <span id="recipe-count" class="text-[10px] text-stone-500"></span>
+            </div>
+            <div class="flex gap-1.5 shrink-0">
+              <button id="btn-import-recipe" type="button" class="recipe-file-action" title="导入 JSON 配方">导入</button>
+              <button id="btn-export-recipe" type="button" class="recipe-file-action" title="导出为 JSON 配方">导出</button>
+              <input id="recipe-file" type="file" accept="application/json,.json" class="hidden" aria-label="选择配方 JSON 文件" />
+            </div>
+          </div>
+          <div id="balance-bar" class="mt-3"></div>
+        </div>
+        <div id="recipe-panel" class="shrink-0 overflow-y-auto custom-scroll border-b border-white/[.06]" style="max-height:36%"></div>
+
+        <div class="flex-1 min-h-0 flex flex-col">
+          <div class="px-4 pt-3 pb-2 flex items-center justify-between shrink-0">
+            <h2 class="text-[13px] font-medium text-stone-200 flex items-center gap-2">
+              规则分析
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">实时</span>
+            </h2>
+            <span id="ai-status" class="text-[10px] text-stone-500"></span>
+          </div>
+          <div id="ai-panel" class="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-2 custom-scroll"></div>
+        </div>
+      </aside>
+
+      <button id="toggle-recipe" type="button" class="panel-toggle panel-toggle-right" aria-controls="recipe-pane" aria-expanded="true" title="点击收起，向右拖动也可收起"><span aria-hidden="true">›</span><small>配方</small></button>
+    </main>
+
+    <!-- ============ 状态栏 ============ -->
+    <footer class="h-7 shrink-0 flex items-center justify-between px-4 border-t border-white/[.06] bg-ink-900/90 text-[10px] text-stone-600">
+          <span id="status-left" role="status" aria-live="polite">就绪</span>
+      <span class="hidden sm:block">Three.js · Vite · Tailwind CSS　|　规则只作提示，不限制任何自由调配</span>
+    </footer>
+  </div>
+
+  <!-- 弹窗提示（橙警告 / 绿推荐） -->
+  <div id="toast-stack" class="fixed top-20 right-[364px] z-50 w-[330px] max-w-[92vw] space-y-2 pointer-events-none"></div>
+
+  <div id="material-modal" class="hidden fixed inset-0 z-[59] items-center justify-center p-5">
+    <section class="material-dialog" role="dialog" aria-modal="true" aria-labelledby="material-dialog-title">
+      <header class="material-dialog-header">
+        <div><p>SCENT ATELIER · INGREDIENT CARD</p><h2 id="material-dialog-title">香料档案</h2></div>
+        <button id="btn-close-material" type="button" aria-label="关闭香料介绍">×</button>
+      </header>
+      <div id="material-info-body"></div>
+      <p class="material-modal-note">属性来自本项目香料资料库；香材气味与实际表现会因产地、批次和浓度而异。</p>
+    </section>
+  </div>
+
+  <!-- 分区展柜（双击 3D 柜格打开） -->
+  <div id="case-modal" class="hidden fixed inset-0 z-[58] items-center justify-center p-5 bg-black/70 backdrop-blur-sm">
+    <div class="w-full max-w-3xl rounded-2xl border border-amber-brand/25 bg-ink-800 shadow-glass overflow-hidden flex flex-col">
+      <div id="case-head" class="px-5 py-4 border-b border-white/[.07] flex items-center justify-between shrink-0"></div>
+      <div id="case-grid" class="p-4 grid gap-2.5 overflow-y-auto custom-scroll" style="max-height:52vh;grid-template-columns:repeat(auto-fill,minmax(116px,1fr))"></div>
+      <div id="case-drop" class="mx-4 mb-3 rounded-xl border border-dashed border-amber-brand/35 py-3 text-center text-[11px] text-amber-soft/80 transition-all">
+        拖出展柜，松手投进画面中央的香水瓶
+      </div>
+      <div class="px-5 py-3 border-t border-white/[.07] flex items-center justify-between gap-3 shrink-0">
+        <span class="text-[10px] text-stone-500">点击直接取用 · 拖到中央香水瓶 · ESC 关闭 · 误投可立即「取消投放」</span>
+        <button id="btn-close-case" class="px-3 py-1.5 rounded-lg text-[11px] border border-white/10 text-stone-400 hover:text-stone-100 hover:border-white/30 transition-colors shrink-0">关闭展柜</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 手持状态 / 撤销投放 操作条 -->
+  <div id="action-bar" class="hidden fixed bottom-11 left-1/2 -translate-x-1/2 z-[55] w-[430px] max-w-[92vw]"></div>
+
+  <!-- LLM 香评弹窗 -->
+  <div id="review-modal" class="hidden fixed inset-0 z-[60] items-center justify-center p-5 bg-black/70 backdrop-blur-sm">
+    <div class="w-full max-w-lg rounded-2xl border border-amber-brand/25 bg-ink-800 shadow-glass overflow-hidden">
+      <div class="px-5 py-4 border-b border-white/[.07] flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg viewBox="0 0 24 24" class="w-4 h-4 text-amber-soft" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9L12 2z"/></svg>
+          <h3 class="text-[13px] font-medium text-stone-100">香评 · Olfactory Review</h3>
+        </div>
+        <button id="btn-close-review" class="text-stone-500 hover:text-stone-200 text-lg leading-none px-1">×</button>
+      </div>
+      <div id="review-body" class="px-6 py-6 text-[13px] leading-[2] text-stone-300 font-serif min-h-[180px]"></div>
+      <div class="px-5 py-3 border-t border-white/[.07] flex items-center justify-between gap-3">
+        <span id="review-source" class="text-[10px] text-stone-600"></span>
+        <div class="flex gap-2">
+          <button id="btn-copy-review" class="px-3 py-1.5 rounded-lg text-[11px] border border-white/10 text-stone-400 hover:text-stone-100 hover:border-white/25 transition-colors">复制</button>
+          <button id="btn-regen-review" class="px-3 py-1.5 rounded-lg text-[11px] text-ink-900 bg-gradient-to-r from-amber-soft to-amber-brand hover:brightness-110 transition-all">重新生成</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

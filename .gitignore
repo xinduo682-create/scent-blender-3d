@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.vite/
+.workbuddy/
+.wbapp_*.genie
+portfolio-upload/
+portfolio-minimal/
+site/
+scent-blender-3d.zip
+
+# 本地临时截图 / 验证产物
+_*.png
+*.log
+.DS_Store
+Thumbs.db
+
+.env
+.env.*
+!.env.example

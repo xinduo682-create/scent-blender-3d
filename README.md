@@ -1,4 +1,3 @@
-warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
 # Scent·Blender 3D
 
 > 打开柜子，拿出一瓶香料，拖进香水瓶 —— 一个可交互的 3D 香调调配模拟器。
@@ -193,4 +192,3 @@ npm run build:standalone # 由 dist/ 生成可双击的单文件 HTML
 ## License
 
 个人作品集项目，代码用于学习与展示。如需开源许可，请在仓库根目录自行添加 `LICENSE`（作品集项目通常选 MIT）。
-
